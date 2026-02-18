@@ -1,0 +1,279 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+local defaultWalkSpeed = humanoid.WalkSpeed
+local speedEnabled = false
+local antiHitEnabled = false
+local speedValue = 50
+
+local antiKBConn = nil
+local stateConn = nil
+local speedConn = nil
+
+local function stopAntiKB()
+	if antiKBConn then
+		antiKBConn:Disconnect()
+		antiKBConn = nil
+	end
+	if stateConn then
+		stateConn:Disconnect()
+		stateConn = nil
+	end
+end
+
+local function startAntiKB()
+	stopAntiKB()
+	stateConn = humanoid.StateChanged:Connect(function(_, new)
+		if antiHitEnabled then
+			if new == Enum.HumanoidStateType.Ragdoll or new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.PlatformStanding then
+				humanoid:ChangeState(Enum.HumanoidStateType.Running)
+			end
+		end
+	end)
+	antiKBConn = RunService.Heartbeat:Connect(function()
+		if antiHitEnabled and hrp and hrp.Parent then
+			local v = hrp.AssemblyLinearVelocity
+			hrp.AssemblyAngularVelocity = Vector3.new()
+			local xz = Vector3.new(v.X, 0, v.Z)
+			local limit = math.max(humanoid and humanoid.WalkSpeed or 16, speedValue or 16) + 5
+			local m = xz.Magnitude
+			if m > limit then
+				xz = xz.Unit * limit
+			end
+			hrp.AssemblyLinearVelocity = Vector3.new(xz.X, v.Y, xz.Z)
+		end
+	end)
+end
+
+local function applyAntiHit(enable)
+	antiHitEnabled = enable
+	if enable then
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+		if not character:FindFirstChildOfClass("ForceField") then
+			local ff = Instance.new("ForceField")
+			ff.Visible = false
+			ff.Parent = character
+		end
+		startAntiKB()
+	else
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
+		for _, ff in ipairs(character:GetChildren()) do
+			if ff:IsA("ForceField") then
+				ff:Destroy()
+			end
+		end
+		stopAntiKB()
+	end
+end
+
+local function applySpeed(enable)
+	speedEnabled = enable
+	if enable then
+		humanoid.WalkSpeed = speedValue
+		if speedConn then
+			speedConn:Disconnect()
+			speedConn = nil
+		end
+		speedConn = RunService.Heartbeat:Connect(function()
+			if speedEnabled and humanoid and humanoid.Parent and hrp and hrp.Parent then
+				if humanoid.WalkSpeed ~= speedValue then
+					humanoid.WalkSpeed = speedValue
+				end
+				local dir = humanoid.MoveDirection
+				if dir.Magnitude > 0.01 then
+					dir = dir.Unit
+					local v = hrp.AssemblyLinearVelocity
+					local target = dir * speedValue
+					hrp.AssemblyLinearVelocity = Vector3.new(target.X, v.Y, target.Z)
+				end
+			end
+		end)
+	else
+		humanoid.WalkSpeed = defaultWalkSpeed
+		if speedConn then
+			speedConn:Disconnect()
+			speedConn = nil
+		end
+	end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+	character = char
+	humanoid = character:WaitForChild("Humanoid")
+	hrp = character:WaitForChild("HumanoidRootPart")
+	defaultWalkSpeed = humanoid.WalkSpeed
+	if speedEnabled then
+		applySpeed(true)
+	end
+	if antiHitEnabled then
+		applyAntiHit(true)
+	end
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "XVoicHub"
+gui.ResetOnSpawn = false
+gui.Parent = PlayerGui
+
+local frame = Instance.new("Frame")
+frame.Name = "Main"
+frame.Parent = gui
+frame.Size = UDim2.new(0, 260, 0, 200)
+frame.Position = UDim2.new(0, 50, 0, 50)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+frame.BorderSizePixel = 0
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 10)
+frameCorner.Parent = frame
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Thickness = 1.5
+frameStroke.Color = Color3.fromRGB(60, 60, 80)
+frameStroke.Parent = frame
+local grad = Instance.new("UIGradient")
+grad.Color = ColorSequence.new(Color3.fromRGB(28,28,36), Color3.fromRGB(20,20,26))
+grad.Rotation = 90
+grad.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Parent = frame
+title.Size = UDim2.new(1, 0, 0, 38)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "XVoic Hub"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 22
+title.Font = Enum.Font.GothamBold
+local dragBar = Instance.new("Frame")
+dragBar.Parent = frame
+dragBar.Size = UDim2.new(1, 0, 0, 38)
+dragBar.Position = UDim2.new(0, 0, 0, 0)
+dragBar.BackgroundTransparency = 1
+
+local speedBtn = Instance.new("TextButton")
+speedBtn.Parent = frame
+speedBtn.Size = UDim2.new(1, -24, 0, 36)
+speedBtn.Position = UDim2.new(0, 12, 0, 56)
+speedBtn.Text = "Speed: OFF"
+speedBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+speedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBtn.TextSize = 17
+speedBtn.AutoButtonColor = true
+speedBtn.Font = Enum.Font.Gotham
+local speedBtnCorner = Instance.new("UICorner")
+speedBtnCorner.CornerRadius = UDim.new(0, 8)
+speedBtnCorner.Parent = speedBtn
+local speedBtnStroke = Instance.new("UIStroke")
+speedBtnStroke.Color = Color3.fromRGB(70, 80, 110)
+speedBtnStroke.Thickness = 1
+speedBtnStroke.Parent = speedBtn
+
+local speedBox = Instance.new("TextBox")
+speedBox.Parent = frame
+speedBox.Size = UDim2.new(1, -24, 0, 34)
+speedBox.Position = UDim2.new(0, 12, 0, 100)
+speedBox.Text = tostring(speedValue)
+speedBox.PlaceholderText = "Speed value"
+speedBox.BackgroundColor3 = Color3.fromRGB(32, 34, 46)
+speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBox.TextSize = 17
+speedBox.ClearTextOnFocus = false
+speedBox.Font = Enum.Font.Gotham
+local speedBoxCorner = Instance.new("UICorner")
+speedBoxCorner.CornerRadius = UDim.new(0, 8)
+speedBoxCorner.Parent = speedBox
+local speedBoxStroke = Instance.new("UIStroke")
+speedBoxStroke.Color = Color3.fromRGB(60, 70, 95)
+speedBoxStroke.Thickness = 1
+speedBoxStroke.Parent = speedBox
+
+local antiBtn = Instance.new("TextButton")
+antiBtn.Parent = frame
+antiBtn.Size = UDim2.new(1, -24, 0, 36)
+antiBtn.Position = UDim2.new(0, 12, 0, 144)
+antiBtn.Text = "Anti-Hit: OFF"
+antiBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+antiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiBtn.TextSize = 17
+antiBtn.AutoButtonColor = true
+antiBtn.Font = Enum.Font.Gotham
+local antiBtnCorner = Instance.new("UICorner")
+antiBtnCorner.CornerRadius = UDim.new(0, 8)
+antiBtnCorner.Parent = antiBtn
+local antiBtnStroke = Instance.new("UIStroke")
+antiBtnStroke.Color = Color3.fromRGB(70, 80, 110)
+antiBtnStroke.Thickness = 1
+antiBtnStroke.Parent = antiBtn
+
+local function setButtonState(btn, on)
+	if on then
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.BackgroundColor3 = Color3.fromRGB(50, 160, 100)
+	else
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+	end
+end
+
+setButtonState(speedBtn, false)
+setButtonState(antiBtn, false)
+
+speedBtn.MouseButton1Click:Connect(function()
+	speedEnabled = not speedEnabled
+	speedBtn.Text = speedEnabled and "Speed: ON" or "Speed: OFF"
+	setButtonState(speedBtn, speedEnabled)
+	applySpeed(speedEnabled)
+end)
+
+antiBtn.MouseButton1Click:Connect(function()
+	antiHitEnabled = not antiHitEnabled
+	antiBtn.Text = antiHitEnabled and "Anti-Hit: ON" or "Anti-Hit: OFF"
+	setButtonState(antiBtn, antiHitEnabled)
+	applyAntiHit(antiHitEnabled)
+end)
+
+speedBox.FocusLost:Connect(function(enter)
+	local v = tonumber(speedBox.Text)
+	if v and v > 0 and v < 1000 then
+		speedValue = math.floor(v + 0.5)
+		speedBox.Text = tostring(speedValue)
+		if speedEnabled then
+			humanoid.WalkSpeed = speedValue
+		end
+	else
+		speedBox.Text = tostring(speedValue)
+	end
+end)
+
+local dragging = false
+local dragStart
+local startPos
+dragBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+	end
+end)
+dragBar.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
