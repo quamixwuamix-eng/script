@@ -59,6 +59,12 @@ local function startAnti()
 		if st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.PlatformStanding or st == Enum.HumanoidStateType.Physics then
 			humanoid:ChangeState(Enum.HumanoidStateType.Running)
 		end
+		if not speedEnabled then
+			local minWalk = math.max(16, defaultWalkSpeed)
+			if humanoid.WalkSpeed < minWalk then
+				humanoid.WalkSpeed = minWalk
+			end
+		end
 		local xz = Vector3.new(v.X, 0, v.Z)
 		local limit = math.max(humanoid.WalkSpeed, speedValue) + 6
 		if xz.Magnitude > limit + 2 then
@@ -265,7 +271,7 @@ antiBtn.MouseButton1Click:Connect(function()
 	applyAnti(antiHitEnabled)
 end)
 
-speedBox.FocusLost:Connect(function(enter)
+speedBox.FocusLost:Connect(function()
 	local v = tonumber(speedBox.Text)
 	if v and v > 0 and v < 1000 then
 		speedValue = math.floor(v + 0.5)
@@ -309,3 +315,5 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		showUI(not frame.Visible)
 	end
 end)
+
+
