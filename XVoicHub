@@ -1,10 +1,10 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local lp = Players.LocalPlayer
+local pg = lp:WaitForChild("PlayerGui")
 
-local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local character = lp.Character or lp.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local hrp = character:WaitForChild("HumanoidRootPart")
 
@@ -13,18 +13,14 @@ local speedEnabled = false
 local antiHitEnabled = false
 local speedValue = 50
 
-local antiKBConn = nil
-local stateConn = nil
-local speedConn = nil
+local antiHB, stateConn, speedHB
 
-local function rebindCharacter(char)
+local function bindChar(char)
 	character = char
 	humanoid = character:WaitForChild("Humanoid")
 	hrp = character:WaitForChild("HumanoidRootPart")
 	defaultWalkSpeed = humanoid.WalkSpeed
-	if speedEnabled then
-		humanoid.WalkSpeed = speedValue
-	end
+	if speedEnabled then humanoid.WalkSpeed = speedValue end
 	if antiHitEnabled then
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
@@ -32,13 +28,15 @@ local function rebindCharacter(char)
 	end
 end
 
-local function stopAntiKB()
-	if antiKBConn then antiKBConn:Disconnect() antiKBConn = nil end
+lp.CharacterAdded:Connect(bindChar)
+
+local function stopAnti()
+	if antiHB then antiHB:Disconnect() antiHB = nil end
 	if stateConn then stateConn:Disconnect() stateConn = nil end
 end
 
-local function startAntiKB()
-	stopAntiKB()
+local function startAnti()
+	stopAnti()
 	stateConn = humanoid.StateChanged:Connect(function(_, new)
 		if antiHitEnabled then
 			if new == Enum.HumanoidStateType.Ragdoll or new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.PlatformStanding then
@@ -51,34 +49,263 @@ local function startAntiKB()
 			end
 		end
 	end)
-	antiKBConn = RunService.Heartbeat:Connect(function()
-		if antiHitEnabled and hrp and hrp.Parent then
-			local v = hrp.AssemblyLinearVelocity
-			local w = hrp.AssemblyAngularVelocity
-			hrp.AssemblyAngularVelocity = Vector3.new(0, w.Y, 0)
-			if humanoid.PlatformStand then humanoid.PlatformStand = false end
-			local st = humanoid:GetState()
-			if st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.PlatformStanding or st == Enum.HumanoidStateType.Physics then
-				humanoid:ChangeState(Enum.HumanoidStateType.Running)
-			end
-			local xz = Vector3.new(v.X, 0, v.Z)
-			local limit = math.max(humanoid and humanoid.WalkSpeed or 16, speedValue or 16) + 8
-			local m = xz.Magnitude
-			if m > limit + 2 then
-				local clamped = xz.Unit * limit
-				hrp.AssemblyLinearVelocity = Vector3.new(clamped.X, v.Y, clamped.Z)
-			end
+	antiHB = RunService.Heartbeat:Connect(function()
+		if not antiHitEnabled or not hrp or not hrp.Parent or humanoid.Health <= 0 then return end
+		local v = hrp.AssemblyLinearVelocity
+		local w = hrp.AssemblyAngularVelocity
+		hrp.AssemblyAngularVelocity = Vector3.new(0, w.Y, 0)
+		if humanoid.PlatformStand then humanoid.PlatformStand = false end
+		local st = humanoid:GetState()
+		if st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.PlatformStanding or st == Enum.HumanoidStateType.Physics then
+			humanoid:ChangeState(Enum.HumanoidStateType.Running)
+		end
+		local xz = Vector3.new(v.X, 0, v.Z)
+		local limit = math.max(humanoid.WalkSpeed, speedValue) + 6
+		if xz.Magnitude > limit + 2 then
+			xz = xz.Unit * limit
+			hrp.AssemblyLinearVelocity = Vector3.new(xz.X, v.Y, xz.Z)
 		end
 	end)
 end
 
-local function applyAntiHit(enable)
-	antiHitEnabled = enable
-	if enable then
+local function applyAnti(on)
+	antiHitEnabled = on
+	if on then
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
-		startAntiKB()
+		startAnti()
 	else
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
+		stopAnti()
+	end
+end
+
+local function stopSpeed()
+	if speedHB then speedHB:Disconnect() speedHB = nil end
+end
+
+local function applySpeed(on)
+	speedEnabled = on
+	if on then
+		humanoid.WalkSpeed = speedValue
+		stopSpeed()
+		speedHB = RunService.Heartbeat:Connect(function()
+			if not speedEnabled or humanoid.Health <= 0 or not hrp or not hrp.Parent then return end
+			if humanoid.WalkSpeed ~= speedValue then
+				humanoid.WalkSpeed = speedValue
+			end
+			local dir = humanoid.MoveDirection
+			if dir.Magnitude > 0.01 then
+				dir = dir.Unit
+				local v = hrp.AssemblyLinearVelocity
+				local currentXZ = Vector3.new(v.X, 0, v.Z)
+				local targetXZ = dir * speedValue
+				local alpha = 0.12
+				local newXZ = currentXZ + (targetXZ - currentXZ) * alpha
+				local cap = speedValue + 6
+				if newXZ.Magnitude > cap then newXZ = newXZ.Unit * cap end
+				hrp.AssemblyLinearVelocity = Vector3.new(newXZ.X, v.Y, newXZ.Z)
+			end
+		end)
+	else
+		humanoid.WalkSpeed = defaultWalkSpeed
+		stopSpeed()
+	end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "XVoicHub"
+gui.ResetOnSpawn = false
+gui.Parent = pg
+
+local frame = Instance.new("Frame")
+frame.Name = "Main"
+frame.Parent = gui
+frame.Size = UDim2.new(0, 260, 0, 200)
+frame.Position = UDim2.new(0, 50, 0, 50)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+frame.BorderSizePixel = 0
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = frame
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 1.5
+stroke.Color = Color3.fromRGB(60, 60, 80)
+stroke.Parent = frame
+local grad = Instance.new("UIGradient")
+grad.Color = ColorSequence.new(Color3.fromRGB(28,28,36), Color3.fromRGB(20,20,26))
+grad.Rotation = 90
+grad.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Parent = frame
+title.Size = UDim2.new(1, 0, 0, 38)
+title.BackgroundTransparency = 1
+title.Text = "XVoic Hub"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 22
+title.Font = Enum.Font.GothamBold
+
+local dragBar = Instance.new("Frame")
+dragBar.Parent = frame
+dragBar.Size = UDim2.new(1, 0, 0, 38)
+dragBar.BackgroundTransparency = 1
+
+local hideBtn = Instance.new("TextButton")
+hideBtn.Parent = frame
+hideBtn.Size = UDim2.new(0, 28, 0, 28)
+hideBtn.Position = UDim2.new(1, -34, 0, 5)
+hideBtn.Text = "−"
+hideBtn.BackgroundColor3 = Color3.fromRGB(60, 65, 90)
+hideBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+hideBtn.TextSize = 16
+hideBtn.AutoButtonColor = true
+hideBtn.Font = Enum.Font.GothamBold
+local hideCorner = Instance.new("UICorner")
+hideCorner.CornerRadius = UDim.new(1, 0)
+hideCorner.Parent = hideBtn
+
+local miniBtn = Instance.new("TextButton")
+miniBtn.Parent = gui
+miniBtn.Size = UDim2.new(0, 90, 0, 28)
+miniBtn.Position = UDim2.new(0, 12, 0, 12)
+miniBtn.Text = "XVoic Hub"
+miniBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+miniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniBtn.TextSize = 14
+miniBtn.AutoButtonColor = true
+miniBtn.Font = Enum.Font.Gotham
+local miniCorner = Instance.new("UICorner")
+miniCorner.CornerRadius = UDim.new(0, 8)
+miniCorner.Parent = miniBtn
+miniBtn.Visible = false
+
+local speedBtn = Instance.new("TextButton")
+speedBtn.Parent = frame
+speedBtn.Size = UDim2.new(1, -24, 0, 36)
+speedBtn.Position = UDim2.new(0, 12, 0, 56)
+speedBtn.Text = "Speed: OFF"
+speedBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+speedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBtn.TextSize = 17
+speedBtn.AutoButtonColor = true
+speedBtn.Font = Enum.Font.Gotham
+local spBCorner = Instance.new("UICorner")
+spBCorner.CornerRadius = UDim.new(0, 8)
+spBCorner.Parent = speedBtn
+local spBStroke = Instance.new("UIStroke")
+spBStroke.Color = Color3.fromRGB(70, 80, 110)
+spBStroke.Thickness = 1
+spBStroke.Parent = speedBtn
+
+local speedBox = Instance.new("TextBox")
+speedBox.Parent = frame
+speedBox.Size = UDim2.new(1, -24, 0, 34)
+speedBox.Position = UDim2.new(0, 12, 0, 100)
+speedBox.Text = tostring(speedValue)
+speedBox.PlaceholderText = "Speed value"
+speedBox.BackgroundColor3 = Color3.fromRGB(32, 34, 46)
+speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBox.TextSize = 17
+speedBox.ClearTextOnFocus = false
+speedBox.Font = Enum.Font.Gotham
+local spXCorner = Instance.new("UICorner")
+spXCorner.CornerRadius = UDim.new(0, 8)
+spXCorner.Parent = speedBox
+local spXStroke = Instance.new("UIStroke")
+spXStroke.Color = Color3.fromRGB(60, 70, 95)
+spXStroke.Thickness = 1
+spXStroke.Parent = speedBox
+
+local antiBtn = Instance.new("TextButton")
+antiBtn.Parent = frame
+antiBtn.Size = UDim2.new(1, -24, 0, 36)
+antiBtn.Position = UDim2.new(0, 12, 0, 144)
+antiBtn.Text = "Anti-Hit: OFF"
+antiBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+antiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiBtn.TextSize = 17
+antiBtn.AutoButtonColor = true
+antiBtn.Font = Enum.Font.Gotham
+local aBCorner = Instance.new("UICorner")
+aBCorner.CornerRadius = UDim.new(0, 8)
+aBCorner.Parent = antiBtn
+local aBStroke = Instance.new("UIStroke")
+aBStroke.Color = Color3.fromRGB(70, 80, 110)
+aBStroke.Thickness = 1
+aBStroke.Parent = antiBtn
+
+local function setButtonState(btn, on)
+	if on then
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.BackgroundColor3 = Color3.fromRGB(50, 160, 100)
+	else
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+	end
+end
+
+setButtonState(speedBtn, false)
+setButtonState(antiBtn, false)
+
+speedBtn.MouseButton1Click:Connect(function()
+	speedEnabled = not speedEnabled
+	speedBtn.Text = speedEnabled and "Speed: ON" or "Speed: OFF"
+	setButtonState(speedBtn, speedEnabled)
+	applySpeed(speedEnabled)
+end)
+
+antiBtn.MouseButton1Click:Connect(function()
+	antiHitEnabled = not antiHitEnabled
+	antiBtn.Text = antiHitEnabled and "Anti-Hit: ON" or "Anti-Hit: OFF"
+	setButtonState(antiBtn, antiHitEnabled)
+	applyAnti(antiHitEnabled)
+end)
+
+speedBox.FocusLost:Connect(function(enter)
+	local v = tonumber(speedBox.Text)
+	if v and v > 0 and v < 1000 then
+		speedValue = math.floor(v + 0.5)
+		speedBox.Text = tostring(speedValue)
+		if speedEnabled then humanoid.WalkSpeed = speedValue end
+	else
+		speedBox.Text = tostring(speedValue)
+	end
+end)
+
+local dragging = false
+local dragStart
+local startPos
+dragBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+	end
+end)
+dragBar.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+local function showUI(show)
+	frame.Visible = show
+	miniBtn.Visible = not show
+end
+miniBtn.MouseButton1Click:Connect(function() showUI(true) end)
+hideBtn.MouseButton1Click:Connect(function() showUI(false) end)
+UserInputService.InputBegan:Connect(function(input, gp)
+	if not gp and input.KeyCode == Enum.KeyCode.RightShift then
+		showUI(not frame.Visible)
+	end
+end)
