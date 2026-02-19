@@ -40,9 +40,17 @@ local function startAntiKB()
 	antiKBConn = RunService.Heartbeat:Connect(function()
 		if antiHitEnabled and hrp and hrp.Parent then
 			local v = hrp.AssemblyLinearVelocity
-			hrp.AssemblyAngularVelocity = Vector3.new()
+			local w = hrp.AssemblyAngularVelocity
+			hrp.AssemblyAngularVelocity = Vector3.new(0, w.Y, 0)
+			if humanoid.PlatformStand then
+				humanoid.PlatformStand = false
+			end
+			local st = humanoid:GetState()
+			if st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.PlatformStanding or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.GettingUp then
+				humanoid:ChangeState(Enum.HumanoidStateType.Running)
+			end
 			local xz = Vector3.new(v.X, 0, v.Z)
-			local limit = math.max(humanoid and humanoid.WalkSpeed or 16, speedValue or 16) + 5
+			local limit = math.max(humanoid and humanoid.WalkSpeed or 16, speedValue or 16) + 8
 			local m = xz.Magnitude
 			if m > limit then
 				xz = xz.Unit * limit
@@ -276,4 +284,3 @@ UserInputService.InputChanged:Connect(function(input)
 		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
 end)
-
