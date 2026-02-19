@@ -146,6 +146,34 @@ grad.Color = ColorSequence.new(Color3.fromRGB(28,28,36), Color3.fromRGB(20,20,26
 grad.Rotation = 90
 grad.Parent = frame
 
+-- Tabs
+local tabBar = Instance.new("Frame")
+tabBar.Name = "TabBar"
+tabBar.Parent = frame
+tabBar.Size = UDim2.new(1, 0, 0, 34)
+tabBar.Position = UDim2.new(0, 0, 0, 38)
+tabBar.BackgroundTransparency = 1
+
+local content = Instance.new("Frame")
+content.Name = "Content"
+content.Parent = frame
+content.Size = UDim2.new(1, 0, 1, -72)
+content.Position = UDim2.new(0, 0, 0, 72)
+content.BackgroundTransparency = 1
+
+local mainPage = Instance.new("Frame")
+mainPage.Name = "MainPage"
+mainPage.Parent = content
+mainPage.Size = UDim2.new(1, 0, 1, 0)
+mainPage.BackgroundTransparency = 1
+
+local pvpPage = Instance.new("Frame")
+pvpPage.Name = "PvPPage"
+pvpPage.Parent = content
+pvpPage.Size = UDim2.new(1, 0, 1, 0)
+pvpPage.Visible = false
+pvpPage.BackgroundTransparency = 1
+
 local title = Instance.new("TextLabel")
 title.Parent = frame
 title.Size = UDim2.new(1, 0, 0, 38)
@@ -176,7 +204,7 @@ hideCorner.Parent = hideBtn
 
 local miniBtn = Instance.new("TextButton")
 miniBtn.Parent = gui
-miniBtn.Size = UDim2.new(0, 90, 0, 28)
+miniBtn.Size = UDim2.new(0, 92, 0, 28)
 miniBtn.Position = UDim2.new(0, 12, 0, 12)
 miniBtn.Text = "XVoic Hub"
 miniBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
@@ -189,16 +217,57 @@ miniCorner.CornerRadius = UDim.new(0, 8)
 miniCorner.Parent = miniBtn
 miniBtn.Visible = false
 
-local speedBtn = Instance.new("TextButton")
+local function addTabButton(text, offsetX)
+	local b = Instance.new("TextButton")
+	b.Parent = tabBar
+	b.Size = UDim2.new(0, 90, 0, 28)
+	b.Position = UDim2.new(0, 12 + offsetX, 0, 3)
+	b.Text = text
+	b.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+	b.TextColor3 = Color3.fromRGB(255, 255, 255)
+	b.TextSize = 14
+	b.AutoButtonColor = true
+	b.Font = Enum.Font.Gotham
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 8)
+	c.Parent = b
+	local s = Instance.new("UIStroke")
+	s.Color = Color3.fromRGB(70, 80, 110)
+	s.Thickness = 1
+	s.Parent = b
+	return b
+end
+
+local mainTabBtn = addTabButton("Main", 0)
+local pvpTabBtn = addTabButton("PvP", 98)
+
+local function switchTab(name)
+	if name == "Main" then
+		mainPage.Visible = true
+		pvpPage.Visible = false
+		mainTabBtn.BackgroundColor3 = Color3.fromRGB(50, 160, 100)
+		pvpTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+	else
+		mainPage.Visible = false
+		pvpPage.Visible = true
+		mainTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+		pvpTabBtn.BackgroundColor3 = Color3.fromRGB(50, 160, 100)
+	end
+end
+switchTab("Main")
+mainTabBtn.MouseButton1Click:Connect(function() switchTab("Main") end)
+pvpTabBtn.MouseButton1Click:Connect(function() switchTab("PvP") end)
+
 speedBtn.Parent = frame
+speedBtn.Parent = speedBtnParent
 speedBtn.Size = UDim2.new(1, -24, 0, 36)
-speedBtn.Position = UDim2.new(0, 12, 0, 56)
-speedBtn.Text = "Speed: OFF"
+speedBtn.Position = UDim2.new(0, 12, 0, 0)
 speedBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
 speedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedBtn.TextSize = 17
 speedBtn.AutoButtonColor = true
 speedBtn.Font = Enum.Font.Gotham
+local spBCorner = Instance.new("UICorner")
 local spBCorner = Instance.new("UICorner")
 spBCorner.CornerRadius = UDim.new(0, 8)
 spBCorner.Parent = speedBtn
@@ -208,9 +277,9 @@ spBStroke.Thickness = 1
 spBStroke.Parent = speedBtn
 
 local speedBox = Instance.new("TextBox")
-speedBox.Parent = frame
+speedBox.Parent = mainPage
 speedBox.Size = UDim2.new(1, -24, 0, 34)
-speedBox.Position = UDim2.new(0, 12, 0, 100)
+speedBox.Position = UDim2.new(0, 12, 0, 44)
 speedBox.Text = tostring(speedValue)
 speedBox.PlaceholderText = "Speed value"
 speedBox.BackgroundColor3 = Color3.fromRGB(32, 34, 46)
@@ -227,9 +296,9 @@ spXStroke.Thickness = 1
 spXStroke.Parent = speedBox
 
 local antiBtn = Instance.new("TextButton")
-antiBtn.Parent = frame
+antiBtn.Parent = mainPage
 antiBtn.Size = UDim2.new(1, -24, 0, 36)
-antiBtn.Position = UDim2.new(0, 12, 0, 144)
+antiBtn.Position = UDim2.new(0, 12, 0, 88)
 antiBtn.Text = "Anti-Hit: OFF"
 antiBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
 antiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -282,6 +351,164 @@ speedBox.FocusLost:Connect(function()
 	end
 end)
 
+-- PvP Page: Aim Assist for "Laser" tools (camera aim)
+local aimEnabled = false
+local aimHB = nil
+local aimFov = 60
+local teamCheck = true
+local aimPartName = "Head"
+
+local aimBtn = Instance.new("TextButton")
+aimBtn.Parent = pvpPage
+aimBtn.Size = UDim2.new(1, -24, 0, 36)
+aimBtn.Position = UDim2.new(0, 12, 0, 0)
+aimBtn.Text = "AimAssist: OFF"
+aimBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+aimBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimBtn.TextSize = 17
+aimBtn.AutoButtonColor = true
+aimBtn.Font = Enum.Font.Gotham
+local aimBtnCorner = Instance.new("UICorner")
+aimBtnCorner.CornerRadius = UDim.new(0, 8)
+aimBtnCorner.Parent = aimBtn
+local aimBtnStroke = Instance.new("UIStroke")
+aimBtnStroke.Color = Color3.fromRGB(70, 80, 110)
+aimBtnStroke.Thickness = 1
+aimBtnStroke.Parent = aimBtn
+
+local fovBox = Instance.new("TextBox")
+fovBox.Parent = pvpPage
+fovBox.Size = UDim2.new(1, -24, 0, 34)
+fovBox.Position = UDim2.new(0, 12, 0, 44)
+fovBox.Text = tostring(aimFov)
+fovBox.PlaceholderText = "FOV (deg)"
+fovBox.BackgroundColor3 = Color3.fromRGB(32, 34, 46)
+fovBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+fovBox.TextSize = 17
+fovBox.ClearTextOnFocus = false
+fovBox.Font = Enum.Font.Gotham
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(0, 8)
+fovCorner.Parent = fovBox
+local fovStroke = Instance.new("UIStroke")
+fovStroke.Color = Color3.fromRGB(60, 70, 95)
+fovStroke.Thickness = 1
+fovStroke.Parent = fovBox
+
+local teamBtn = Instance.new("TextButton")
+teamBtn.Parent = pvpPage
+teamBtn.Size = UDim2.new(1, -24, 0, 36)
+teamBtn.Position = UDim2.new(0, 12, 0, 88)
+teamBtn.Text = "TeamCheck: ON"
+teamBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+teamBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+teamBtn.TextSize = 17
+teamBtn.AutoButtonColor = true
+teamBtn.Font = Enum.Font.Gotham
+local teamBtnCorner = Instance.new("UICorner")
+teamBtnCorner.CornerRadius = UDim.new(0, 8)
+teamBtnCorner.Parent = teamBtn
+local teamBtnStroke = Instance.new("UIStroke")
+teamBtnStroke.Color = Color3.fromRGB(70, 80, 110)
+teamBtnStroke.Thickness = 1
+teamBtnStroke.Parent = teamBtn
+
+local partBox = Instance.new("TextBox")
+partBox.Parent = pvpPage
+partBox.Size = UDim2.new(1, -24, 0, 34)
+partBox.Position = UDim2.new(0, 12, 0, 132)
+partBox.Text = aimPartName
+partBox.PlaceholderText = "AimPart (e.g., Head)"
+partBox.BackgroundColor3 = Color3.fromRGB(32, 34, 46)
+partBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+partBox.TextSize = 17
+partBox.ClearTextOnFocus = false
+partBox.Font = Enum.Font.Gotham
+local partCorner = Instance.new("UICorner")
+partCorner.CornerRadius = UDim.new(0, 8)
+partCorner.Parent = partBox
+local partStroke = Instance.new("UIStroke")
+partStroke.Color = Color3.fromRGB(60, 70, 95)
+partStroke.Thickness = 1
+partStroke.Parent = partBox
+
+local function getTarget()
+	local cam = workspace.CurrentCamera
+	if not cam then return nil end
+	local best, bestAng = nil, math.huge
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl ~= lp and pl.Character and pl.Character:FindFirstChild("Humanoid") and pl.Character:FindFirstChild("HumanoidRootPart") then
+			local hum = pl.Character.Humanoid
+			if hum.Health > 0 then
+				if not teamCheck or (lp.Team ~= nil and pl.Team ~= lp.Team) or (lp.Team == nil) then
+					local part = pl.Character:FindFirstChild(aimPartName) or pl.Character:FindFirstChild("Head")
+					if part then
+						local dir = (part.Position - cam.CFrame.Position).Unit
+						local ang = math.deg(math.acos(math.clamp(dir:Dot(cam.CFrame.LookVector), -1, 1)))
+						if ang < aimFov and ang < bestAng then
+							best, bestAng = part, ang
+						end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+local function stopAim()
+	if aimHB then aimHB:Disconnect() aimHB = nil end
+end
+
+local function startAim()
+	stopAim()
+	aimHB = RunService.RenderStepped:Connect(function(dt)
+		if not aimEnabled then return end
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local tgt = getTarget()
+		if tgt then
+			local look = (tgt.Position - cam.CFrame.Position).Unit
+			local current = cam.CFrame
+			local desired = CFrame.new(current.Position, current.Position + look)
+			cam.CFrame = current:Lerp(desired, 0.2)
+		end
+	end)
+end
+
+aimBtn.MouseButton1Click:Connect(function()
+	aimEnabled = not aimEnabled
+	aimBtn.Text = aimEnabled and "AimAssist: ON" or "AimAssist: OFF"
+	setButtonState(aimBtn, aimEnabled)
+	if aimEnabled then startAim() else stopAim() end
+end)
+
+teamBtn.MouseButton1Click:Connect(function()
+	teamCheck = not teamCheck
+	teamBtn.Text = teamCheck and "TeamCheck: ON" or "TeamCheck: OFF"
+	setButtonState(teamBtn, teamCheck)
+end)
+
+fovBox.FocusLost:Connect(function()
+	local v = tonumber(fovBox.Text)
+	if v and v > 5 and v <= 180 then
+		aimFov = math.floor(v + 0.5)
+		fovBox.Text = tostring(aimFov)
+	else
+		fovBox.Text = tostring(aimFov)
+	end
+end)
+
+partBox.FocusLost:Connect(function()
+	local name = tostring(partBox.Text or ""):gsub("%s+", "")
+	if name ~= "" then
+		aimPartName = name
+		partBox.Text = aimPartName
+	else
+		partBox.Text = aimPartName
+	end
+end)
+
 local dragging = false
 local dragStart
 local startPos
@@ -303,17 +530,3 @@ UserInputService.InputChanged:Connect(function(input)
 		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
 end)
-
-local function showUI(show)
-	frame.Visible = show
-	miniBtn.Visible = not show
-end
-miniBtn.MouseButton1Click:Connect(function() showUI(true) end)
-hideBtn.MouseButton1Click:Connect(function() showUI(false) end)
-UserInputService.InputBegan:Connect(function(input, gp)
-	if not gp and input.KeyCode == Enum.KeyCode.RightShift then
-		showUI(not frame.Visible)
-	end
-end)
-
-
