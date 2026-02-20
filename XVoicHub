@@ -314,4 +314,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	if not gp and input.KeyCode == Enum.KeyCode.RightShift then
 		showUI(not frame.Visible)
 	end
-end)
+end
