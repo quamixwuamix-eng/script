@@ -11,72 +11,97 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 local speedEnabled, jumpBoostEnabled, infJumpEnabled = false, false, false
 local speedValue, jumpValue = 50, 100
+local defaultWalkSpeed = 16
 
--- INFINITY JUMP LOGIK
+-- CHARAKTER BINDING
+local function bindChar(char)
+	character = char
+	humanoid = char:WaitForChild("Humanoid")
+	hrp = char:WaitForChild("HumanoidRootPart")
+	defaultWalkSpeed = humanoid.WalkSpeed
+end
+lp.CharacterAdded:Connect(bindChar)
+
+-- DEINE ORIGINALE SPEED-LOGIK + JUMP BOOST
+RunService.Heartbeat:Connect(function()
+	if not character or not humanoid or humanoid.Health <= 0 or not hrp then return end
+	
+	-- Jump Boost Logik (Konstant erzwingen)
+	if jumpBoostEnabled then
+		humanoid.JumpPower = jumpValue
+		humanoid.UseJumpPower = true
+	end
+
+	-- Deine originale Speed-Logik (Vermischt mit den neuen Werten)
+	if speedEnabled then
+		humanoid.WalkSpeed = speedValue
+		local dir = humanoid.MoveDirection
+		if dir.Magnitude > 0.01 then
+			dir = dir.Unit
+			local v = hrp.AssemblyLinearVelocity
+			local currentXZ = Vector3.new(v.X, 0, v.Z)
+			local targetXZ = dir * speedValue
+			local alpha = 0.12
+			local newXZ = currentXZ + (targetXZ - currentXZ) * alpha
+			local cap = speedValue + 6
+			if newXZ.Magnitude > cap then newXZ = newXZ.Unit * cap end
+			hrp.AssemblyLinearVelocity = Vector3.new(newXZ.X, v.Y, newXZ.Z)
+		end
+	end
+end)
+
+-- INFINITY JUMP
 UserInputService.JumpRequest:Connect(function()
 	if infJumpEnabled and hrp and humanoid then
 		hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 50, hrp.AssemblyLinearVelocity.Z)
 	end
 end)
 
-local function bindChar(char)
-	character = char
-	humanoid = character:WaitForChild("Humanoid")
-	hrp = character:WaitForChild("HumanoidRootPart")
-end
-lp.CharacterAdded:Connect(bindChar)
-
 -- GUI ROOT
 local gui = Instance.new("ScreenGui")
-gui.Name = "XVoicMultiHub"
+gui.Name = "XVoicMultiHub_Custom"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
 -- DESIGN HELPER
 local function applyStyle(obj)
-	local corner = Instance.new("UICorner")
+	local corner = Instance.new("UICorner", obj)
 	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = obj
-	local stroke = Instance.new("UIStroke")
+	local stroke = Instance.new("UIStroke", obj)
 	stroke.Thickness = 1.5
 	stroke.Color = Color3.fromRGB(60, 60, 80)
-	stroke.Parent = obj
-	local grad = Instance.new("UIGradient")
+	local grad = Instance.new("UIGradient", obj)
 	grad.Color = ColorSequence.new(Color3.fromRGB(28,28,36), Color3.fromRGB(20,20,26))
 	grad.Rotation = 90
-	grad.Parent = obj
 end
 
 local function createBtn(parent, text)
-	local btn = Instance.new("TextButton")
+	local btn = Instance.new("TextButton", parent)
 	btn.Size = UDim2.new(1, -24, 0, 36)
 	btn.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Font = Enum.Font.GothamMedium
 	btn.TextSize = 14
 	btn.Text = text
-	btn.Parent = parent
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 	local s = Instance.new("UIStroke", btn) s.Color = Color3.fromRGB(70, 80, 110)
 	return btn
 end
 
 local function createBox(parent, default)
-	local box = Instance.new("TextBox")
+	local box = Instance.new("TextBox", parent)
 	box.Size = UDim2.new(1, -40, 0, 28)
 	box.BackgroundColor3 = Color3.fromRGB(32, 34, 46)
 	box.TextColor3 = Color3.fromRGB(255, 255, 255)
 	box.Text = tostring(default)
-	box.PlaceholderText = "Wert..."
 	box.Font = Enum.Font.Gotham
 	box.TextSize = 13
-	box.Parent = parent
 	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
 	local s = Instance.new("UIStroke", box) s.Color = Color3.fromRGB(60, 70, 95)
 	return box
 end
 
--- DRAG LOGIK FUNKTION
+-- DRAG FUNKTION
 local function makeDraggable(topBar, frame)
 	local dragging, dragStart, startPos
 	topBar.InputBegan:Connect(function(input)
@@ -100,7 +125,6 @@ local bFrame = Instance.new("Frame", gui)
 bFrame.Size = UDim2.new(0, 220, 0, 220)
 bFrame.Position = UDim2.new(0, 50, 0, 50)
 bFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-bFrame.BorderSizePixel = 0
 bFrame.ClipsDescendants = true
 applyStyle(bFrame)
 
@@ -116,7 +140,8 @@ local bContent = Instance.new("Frame", bFrame)
 bContent.Size = UDim2.new(1, 0, 1, -38)
 bContent.Position = UDim2.new(0, 0, 0, 38)
 bContent.BackgroundTransparency = 1
-local bL = Instance.new("UIListLayout", bContent) bL.Padding = UDim.new(0, 7) bL.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Instance.new("UIListLayout", bContent).HorizontalAlignment = Enum.HorizontalAlignment.Center
+bContent.UIListLayout.Padding = UDim.new(0, 7)
 
 local sBtn = createBtn(bContent, "Speed: OFF")
 local sInp = createBox(bContent, speedValue)
@@ -149,7 +174,8 @@ local mContent = Instance.new("Frame", mFrame)
 mContent.Size = UDim2.new(1, 0, 1, -38)
 mContent.Position = UDim2.new(0, 0, 0, 38)
 mContent.BackgroundTransparency = 1
-local mL = Instance.new("UIListLayout", mContent) mL.Padding = UDim.new(0, 8) mL.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Instance.new("UIListLayout", mContent).HorizontalAlignment = Enum.HorizontalAlignment.Center
+mContent.UIListLayout.Padding = UDim.new(0, 8)
 
 local iBtn = createBtn(mContent, "Inf-Jump: OFF")
 local rBtn = createBtn(mContent, "Rejoin Server")
@@ -163,11 +189,10 @@ mini.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
 mini.TextColor3 = Color3.fromRGB(255, 255, 255)
 Instance.new("UICorner", mini)
 
--- LOGIK
+-- LOGIK & EVENTS
 makeDraggable(bTitle, bFrame)
 makeDraggable(mTitle, mFrame)
 
-local bOpen = true
 bTitle.MouseButton1Click:Connect(function()
 	bOpen = not bOpen
 	bFrame:TweenSize(bOpen and UDim2.new(0, 220, 0, 220) or UDim2.new(0, 220, 0, 38), "Out", "Quad", 0.3, true)
@@ -182,15 +207,14 @@ sBtn.MouseButton1Click:Connect(function()
 	speedEnabled = not speedEnabled
 	sBtn.Text = speedEnabled and "Speed: ON" or "Speed: OFF"
 	sBtn.BackgroundColor3 = speedEnabled and Color3.fromRGB(50, 160, 100) or Color3.fromRGB(45, 50, 70)
-	humanoid.WalkSpeed = speedEnabled and speedValue or 16
+	if not speedEnabled then humanoid.WalkSpeed = defaultWalkSpeed end
 end)
 
 jBtn.MouseButton1Click:Connect(function()
 	jumpBoostEnabled = not jumpBoostEnabled
 	jBtn.Text = jumpBoostEnabled and "Jump: ON" or "Jump: OFF"
 	jBtn.BackgroundColor3 = jumpBoostEnabled and Color3.fromRGB(50, 160, 100) or Color3.fromRGB(45, 50, 70)
-	humanoid.JumpPower = jumpBoostEnabled and jumpValue or 50
-	humanoid.UseJumpPower = true
+	if not jumpBoostEnabled then humanoid.JumpPower = 50 end
 end)
 
 iBtn.MouseButton1Click:Connect(function()
@@ -199,15 +223,8 @@ iBtn.MouseButton1Click:Connect(function()
 	iBtn.BackgroundColor3 = infJumpEnabled and Color3.fromRGB(50, 160, 100) or Color3.fromRGB(45, 50, 70)
 end)
 
-sInp.FocusLost:Connect(function() 
-	local v = tonumber(sInp.Text) 
-	if v then speedValue = v if speedEnabled then humanoid.WalkSpeed = v end end 
-end)
-jInp.FocusLost:Connect(function() 
-	local v = tonumber(jInp.Text) 
-	if v then jumpValue = v if jumpBoostEnabled then humanoid.JumpPower = v end end 
-end)
-
+sInp.FocusLost:Connect(function() local v = tonumber(sInp.Text) if v then speedValue = v end end)
+jInp.FocusLost:Connect(function() local v = tonumber(jInp.Text) if v then jumpValue = v end end)
 rBtn.MouseButton1Click:Connect(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp) end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
